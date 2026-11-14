@@ -498,8 +498,71 @@ static inline void pre_console_puts(const char *s) {}
 static inline void print_pre_console_buffer(int flushpoint) {}
 #endif
 
+#ifdef CONFIG_AXERA_RAMLOG
+/*
+ * A copy of the console in RAM for boards without a serial console, in the
+ * layout of the Linux earlycon=ramlog: header, then a ring of text in which
+ * head counts every byte written. It survives a reset; the next system reads
+ * it back. Lines are flushed one by one, so a hang leaves the log in DRAM.
+ */
+#define RAMLOG_MAGIC	0x474f4c52	/* "RLOG" */
+
+struct ramlog_header {
+	u32 magic;
+	u32 size;
+	u32 head;
+	u32 boots;
+};
+
+static struct ramlog_header *const ramlog =
+	(struct ramlog_header *)CONFIG_AXERA_RAMLOG_ADDR;
+
+static void ramlog_init(void)
+{
+	u32 size = CONFIG_AXERA_RAMLOG_SIZE - sizeof(*ramlog);
+
+	if (ramlog->magic == RAMLOG_MAGIC && ramlog->size == size) {
+		ramlog->boots++;
+	} else {
+		ramlog->size = size;
+		ramlog->head = 0;
+		ramlog->boots = 1;
+		ramlog->magic = RAMLOG_MAGIC;
+	}
+	flush_dcache_range((ulong)ramlog, (ulong)ramlog + ARCH_DMA_MINALIGN);
+}
+
+static void ramlog_putc(const char c)
+{
+	char *text = (char *)(ramlog + 1);
+	ulong at;
+
+	if (ramlog->magic != RAMLOG_MAGIC)
+		return;
+
+	at = (ulong)&text[ramlog->head % ramlog->size];
+	*(char *)at = c;
+	ramlog->head++;
+	/* Whole cache lines only: a misaligned flush prints a warning. */
+	if (c == '\n')
+		flush_dcache_range((ulong)ramlog,
+				   (ulong)ramlog + CONFIG_AXERA_RAMLOG_SIZE);
+}
+
+static void ramlog_puts(const char *s)
+{
+	while (*s)
+		ramlog_putc(*s++);
+}
+#else
+static inline void ramlog_init(void) {}
+static inline void ramlog_putc(const char c) {}
+static inline void ramlog_puts(const char *s) {}
+#endif
+
 void putc(const char c)
 {
+	ramlog_putc(c);
 #ifdef CONFIG_SANDBOX
 	/* sandbox can send characters to stdout before it has a console */
 	if (!gd || !(gd->flags & GD_FLG_SERIAL_READY)) {
@@ -548,6 +611,7 @@ void putc(const char c)
 
 void puts(const char *s)
 {
+	ramlog_puts(s);
 #ifdef CONFIG_SANDBOX
 	/* sandbox can send characters to stdout before it has a console */
 	if (!gd || !(gd->flags & GD_FLG_SERIAL_READY)) {
@@ -784,6 +848,7 @@ int console_announce_r(void)
 /* Called before relocation - use serial functions */
 int console_init_f(void)
 {
+	ramlog_init();
 	gd->have_console = 1;
 
 	console_update_silent();
