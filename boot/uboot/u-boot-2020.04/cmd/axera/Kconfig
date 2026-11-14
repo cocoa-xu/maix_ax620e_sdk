@@ -53,10 +53,9 @@ config AXERA_NANOKVM_AB
 	depends on CMD_AXERA_SDBOOT
 	select HUSH_PARSER
 	help
-	  Boot <slot>/zImage and <slot>/nanokvm-go.dtb from the first SD
-	  partition for nerves_fw_active=a|b, falling back to sd_boot. The
-	  environment lives on the SD card; the BOOT button still selects
-	  the stock recovery boot.
+	  Run nerves_bootcmd from the environment, which lives on the SD
+	  card: the Nerves A/B boot of nerves_system_nano_kvm_go. Holding
+	  the BOOT button runs nerves_bootkey (the other slot) instead.
 
 config AXERA_RAMLOG
 	bool "Copy the console into a RAM log"

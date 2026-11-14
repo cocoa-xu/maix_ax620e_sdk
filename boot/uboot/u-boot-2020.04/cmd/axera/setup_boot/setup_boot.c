@@ -135,13 +135,15 @@ static boot_mode_t sd_boot_mode(void)
 {
 	if (boot_info_data.mode == SD_BOOT_MODE) {
 #ifdef CONFIG_AXERA_NANOKVM_AB
-		if (!nanokvm_boot_key_pressed()) {
+		if (nanokvm_boot_key_pressed())
+			env_set("bootcmd", "run nerves_bootkey; sd_boot");
+		else
 			env_set("bootcmd", "run nerves_bootcmd; sd_boot");
-			printf("enter A/B boot mode\n");
-			return SD_BOOT_MODE;
-		}
-#endif
+		printf("enter A/B boot mode\n");
+		return SD_BOOT_MODE;
+#else
 		env_set("bootcmd", "sd_boot");
+#endif
 		printf("enter sd boot mode\n");
 		return SD_BOOT_MODE;
 	}
