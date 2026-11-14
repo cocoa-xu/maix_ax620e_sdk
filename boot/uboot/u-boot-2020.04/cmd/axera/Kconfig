@@ -48,6 +48,32 @@ config CMD_AXERA_SDBOOT
 	help
 	  Axera sd boot to kernel.
 
+config AXERA_NANOKVM_AB
+	bool "NanoKVM-Go A/B boot from the SD card"
+	depends on CMD_AXERA_SDBOOT
+	select HUSH_PARSER
+	help
+	  Boot <slot>/zImage and <slot>/nanokvm-go.dtb from the first SD
+	  partition for nerves_fw_active=a|b, falling back to sd_boot. The
+	  environment lives on the SD card; the BOOT button still selects
+	  the stock recovery boot.
+
+config AXERA_RAMLOG
+	bool "Copy the console into a RAM log"
+	help
+	  Keep the console output in a RAM ring in the layout of the Linux
+	  earlycon=ramlog driver, for boards without a serial console.
+
+config AXERA_RAMLOG_ADDR
+	hex "RAM log address"
+	depends on AXERA_RAMLOG
+	default 0x55f00000
+
+config AXERA_RAMLOG_SIZE
+	hex "RAM log size"
+	depends on AXERA_RAMLOG
+	default 0x10000
+
 config CMD_AXERA_TFTP_OTA
 	bool "axera tftp ota update"
 	default n

@@ -119,9 +119,28 @@ static boot_mode_t tftp_update_mode(void)
 #endif
 
 #ifdef CONFIG_CMD_AXERA_SDBOOT
+#ifdef CONFIG_AXERA_NANOKVM_AB
+/* BOOT button: GPIO3 line 2, low while pressed. Set up as sd_boot does. */
+static bool nanokvm_boot_key_pressed(void)
+{
+	writel(0x00000003, 0x2302024);
+	writel(readl(0x600100c) & ~BIT(1), 0x600100c);
+	udelay(1000);
+
+	return !(readl(0x600108c) & BIT(2));
+}
+#endif
+
 static boot_mode_t sd_boot_mode(void)
 {
 	if (boot_info_data.mode == SD_BOOT_MODE) {
+#ifdef CONFIG_AXERA_NANOKVM_AB
+		if (!nanokvm_boot_key_pressed()) {
+			env_set("bootcmd", "run nerves_bootcmd; sd_boot");
+			printf("enter A/B boot mode\n");
+			return SD_BOOT_MODE;
+		}
+#endif
 		env_set("bootcmd", "sd_boot");
 		printf("enter sd boot mode\n");
 		return SD_BOOT_MODE;
@@ -221,7 +240,9 @@ static void update_cmdline(void)
 		board_id_cmd[11] = board_id + 'W';
 	}
 	env_set("bootargs", bootargs);
+#ifndef CONFIG_AXERA_NANOKVM_AB
 	env_save();
+#endif
 }
 
 int setup_boot_mode(void)

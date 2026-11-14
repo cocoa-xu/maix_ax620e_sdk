@@ -47,4 +47,43 @@
 #define EMMC_DEV_ID          0
 #define SD_DEV_ID            1
 
+#ifdef CONFIG_AXERA_NANOKVM_AB
+/*
+ * A/B boot: <slot>/zImage and <slot>/nanokvm-go.dtb on the first SD
+ * partition. setup_boot runs nerves_bootcmd: the active slot, else the other
+ * one (made active). While upgrade_available=1 every boot counts; past
+ * bootlimit, altbootcmd switches back to the other slot. A failed attempt
+ * leaves the step it stopped at in nerves_stage. The zImage has to sit in the
+ * first 128 MiB of DRAM, where it derives the kernel's physical base.
+ * sdupdate=finish keeps the vendor SD update mode (and its watchdog stop) out.
+ */
+#define CONFIG_EXTRA_ENV_SETTINGS \
+	"sdupdate=finish\0" \
+	"nerves_fw_active=a\0" \
+	"bootlimit=3\0" \
+	"kernel_addr_r=0x42000000\0" \
+	"fdt_addr_r=0x43000000\0" \
+	"nerves_extra_args=\0" \
+	"nerves_bootcmd=run nerves_boot; run nerves_other\0" \
+	"altbootcmd=run nerves_other; sd_boot\0" \
+	"nerves_other=" \
+		"if test \"${nerves_fw_active}\" = b; then " \
+		"setenv nerves_fw_active a; else setenv nerves_fw_active b; fi; " \
+		"setenv upgrade_available 0; setenv bootcount 0; saveenv; " \
+		"run nerves_boot\0" \
+	"nerves_boot=" \
+		"if test \"${nerves_fw_active}\" = b; then setenv slot b; " \
+		"else setenv slot a; fi; " \
+		"setenv nerves_stage kernel && " \
+		"fatload mmc 1:1 ${kernel_addr_r} ${slot}/zImage && " \
+		"setenv nerves_stage fdt && " \
+		"fatload mmc 1:1 ${fdt_addr_r} ${slot}/nanokvm-go.dtb && " \
+		"setenv bootargs console=ttyS3,115200n8 " \
+		"earlycon=uart8250,mmio32,0x6080000 rdinit=/init " \
+		"nanokvm_boot=uboot nerves_fw_active=${slot} " \
+		"${nerves_extra_args} && " \
+		"setenv nerves_stage bootz && axwdt 120 && " \
+		"bootz ${kernel_addr_r} - ${fdt_addr_r}\0"
+#endif
+
 #endif
