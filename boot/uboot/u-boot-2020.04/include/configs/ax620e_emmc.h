@@ -59,6 +59,12 @@
  * zImage has to run in the first 128 MiB of DRAM, where it derives the
  * kernel's physical base. sdupdate=finish keeps the vendor SD update mode
  * (and its watchdog stop) out.
+ *
+ * cma_video and cma_npu size the CMA pools (ft_board_setup). A trial of
+ * new sizes keeps the old ones in cma_video_was/cma_npu_was and sets
+ * cma_try=1; nerves_cma makes that 2 at the next boot, and a boot that
+ * still finds 2, the trial not confirmed, puts the old sizes back.
+ * The same as uboot/uboot.env of nerves_system_nano_kvm_go: keep in sync.
  */
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	"sdupdate=finish\0" \
@@ -81,6 +87,11 @@
 		"else setenv nerves_fw_booted 1; " \
 		"if test \"${nerves_fw_autovalidate}\" = 1; then " \
 		"setenv nerves_fw_validated 1; fi; saveenv; fi\0" \
+	"nerves_cma=" \
+		"if test \"$cma_try\" = 2; then " \
+		"setenv cma_video $cma_video_was; setenv cma_npu $cma_npu_was; " \
+		"setenv cma_try; setenv cma_video_was; setenv cma_npu_was; saveenv; " \
+		"elif test \"$cma_try\" = 1; then setenv cma_try 2; saveenv; fi\0" \
 	"nerves_load=" \
 		"if test \"${nerves_fw_active}\" = b; then " \
 		"setenv kernel_blk ${kernel_b_blk}; setenv rootfs_part 3; " \
@@ -92,7 +103,7 @@
 		"root=/dev/mmcblk0p${rootfs_part} rootfstype=squashfs rootwait ro " \
 		"${cmdline} && axwdt 120 && bootm ${fit_addr_r}\0" \
 	"nerves_bootcmd=" \
-		"run nerves_init; run nerves_try; run nerves_revert; " \
+		"run nerves_init; run nerves_cma; run nerves_try; run nerves_revert; " \
 		"setenv nerves_fw_validated 1; saveenv; run nerves_try\0" \
 	"nerves_bootkey=" \
 		"run nerves_revert; setenv nerves_fw_validated 1; saveenv; " \
