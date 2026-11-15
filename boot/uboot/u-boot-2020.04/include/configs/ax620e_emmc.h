@@ -58,7 +58,8 @@
  * The FIT is loaded at fit_addr_r and its kernel copied to 0x42000000: the
  * zImage has to run in the first 128 MiB of DRAM, where it derives the
  * kernel's physical base. sdupdate=finish keeps the vendor SD update mode
- * (and its watchdog stop) out.
+ * (and its watchdog stop) out. UART3 is the auxiliary port's expansion lines
+ * in Linux: its console is ttynull, its early messages go to the RAM log.
  *
  * cma_video and cma_npu size the CMA pools (ft_board_setup). A trial of
  * new sizes keeps the old ones in cma_video_was/cma_npu_was and sets
@@ -98,10 +99,10 @@
 		"else setenv kernel_blk ${kernel_a_blk}; setenv rootfs_part 2; fi; " \
 		"mmc dev 1 && mmc read ${fit_addr_r} ${kernel_blk} ${kernel_blks}\0" \
 	"nerves_try=" \
-		"run nerves_load && setenv bootargs console=ttyS3,115200n8 " \
-		"earlycon=uart8250,mmio32,0x6080000 " \
-		"root=/dev/mmcblk0p${rootfs_part} rootfstype=squashfs rootwait ro " \
-		"${cmdline} && axwdt 120 && bootm ${fit_addr_r}\0" \
+		"run nerves_load && setenv bootargs console=ttynull " \
+		"earlycon=ramlog,0x55f10000 keep_bootcon " \
+		"root=/dev/mmcblk0p$rootfs_part rootfstype=squashfs rootwait ro " \
+		"$cmdline && axwdt 120 && bootm $fit_addr_r\0" \
 	"nerves_bootcmd=" \
 		"run nerves_init; run nerves_cma; run nerves_try; run nerves_revert; " \
 		"setenv nerves_fw_validated 1; saveenv; run nerves_try\0" \
