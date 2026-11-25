@@ -61,6 +61,8 @@
  * (and its watchdog stop) out. UART3 is the auxiliary port's expansion lines
  * in Linux: its console is ttynull, its early messages go to the RAM log.
  *
+ * The RAM log is the top MiB of the first 256 MiB (AXERA_RAMLOG_ADDR), in
+ * the DRAM of both boards: U-Boot's console, then the kernel's early one.
  * cma_video and cma_npu size the CMA pools (ft_board_setup). A trial of
  * new sizes keeps the old ones in cma_video_was/cma_npu_was and sets
  * cma_try=1; nerves_cma makes that 2 at the next boot, and a boot that
@@ -100,7 +102,7 @@
 		"mmc dev 1 && mmc read ${fit_addr_r} ${kernel_blk} ${kernel_blks}\0" \
 	"nerves_try=" \
 		"run nerves_load && setenv bootargs console=ttynull " \
-		"earlycon=ramlog,0x55f10000 keep_bootcon " \
+		"earlycon=ramlog,0x4ff10000 keep_bootcon " \
 		"root=/dev/mmcblk0p$rootfs_part rootfstype=squashfs rootwait ro " \
 		"$cmdline && axwdt 120 && bootm $fit_addr_r\0" \
 	"nerves_bootcmd=" \

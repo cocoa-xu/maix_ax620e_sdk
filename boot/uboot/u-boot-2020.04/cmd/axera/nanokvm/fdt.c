@@ -3,7 +3,10 @@
  * Device tree fixups for Linux:
  * - the chip UID, which SPL copies from the eFuses into IRAM, as the
  *   serial-number (where Nerves' boardid looks for it);
- * - the sizes of the CMA pools of video and of the NPU, from the environment.
+ * - the DRAM the chip type tells, the Go+'s 512 MiB or the Go's 256 MiB, so
+ *   that a card boots on either;
+ * - the sizes of the CMA pools of video and of the NPU, the board's or the
+ *   environment's.
  */
 
 #include <common.h>
@@ -14,6 +17,12 @@
 
 /* Linux aligns CMA pools to page blocks: 2^11 pages of 4 KiB (MAX_ORDER 11) */
 #define CMA_ALIGN_MB	8
+
+/* What Linux keeps besides the CMA pools, in MiB */
+#define LINUX_MIN_MB	96
+
+/* On the Go: what 4K takes with three capture buffers */
+#define GO_VIDEO_MB	144
 
 /* The DRAM in the package in MiB, 0 for chips of other boards */
 static unsigned long dram_mb(void)
@@ -98,9 +107,9 @@ static int set_pool_mb(void *blob, int node, unsigned long mb)
 
 /*
  * A pool size from the environment in MiB, a multiple of CMA_ALIGN_MB from
- * min to max; anything else keeps the device tree's size.
+ * min to max; anything else gives the board's size.
  */
-static unsigned long env_mb(const char *name, unsigned long dt_mb,
+static unsigned long env_mb(const char *name, unsigned long board_mb,
 			    unsigned long min, unsigned long max)
 {
 	const char *value = env_get(name);
@@ -108,47 +117,63 @@ static unsigned long env_mb(const char *name, unsigned long dt_mb,
 	char *end;
 
 	if (!value)
-		return dt_mb;
+		return board_mb;
 
 	mb = simple_strtoul(value, &end, 10);
 	if (end == value || *end || strlen(value) > 5 || mb < min || mb > max ||
 	    mb % CMA_ALIGN_MB) {
-		printf("CMA: %s=%s is not a multiple of %d MiB from %lu to %lu, keeping %lu MiB\n",
-		       name, value, CMA_ALIGN_MB, min, max, dt_mb);
-		return dt_mb;
+		printf("CMA: %s=%s is not a multiple of %d MiB from %lu to %lu here, taking %lu MiB\n",
+		       name, value, CMA_ALIGN_MB, min, max, board_mb);
+		return board_mb;
 	}
 
 	return mb;
 }
 
 /*
+ * The board's sizes, for pools the environment does not size: the device
+ * tree's on the Go+, and on the Go GO_VIDEO_MB for video and the NPU off.
+ */
+static void board_mb(unsigned long dram, unsigned long video_dt, unsigned long npu_dt,
+		     unsigned long *video, unsigned long *npu)
+{
+	if (dram >= 512) {
+		*video = video_dt;
+		*npu = npu_dt;
+	} else {
+		*video = GO_VIDEO_MB;
+		*npu = 0;
+	}
+}
+
+/*
  * cma_video and cma_npu size the CMA pools of video (Linux's default pool)
  * and of the NPU in MiB: multiples of 8, video at least 8, the NPU 0 to turn
- * it off, together at most half of the DRAM. Sizes that are unset or out of
- * these bounds keep the device tree's.
+ * it off, together leaving Linux at least LINUX_MIN_MB of the DRAM. Sizes
+ * that are unset, or that do not fit this board, give the board's: a card
+ * moved to the other board keeps its sizes for when it comes back.
  */
-static void fdt_cma(void *blob)
+static void fdt_cma(void *blob, unsigned long dram)
 {
-	unsigned long half = dram_mb() / 2;
-	unsigned long video_dt, npu_dt, video, npu;
+	unsigned long video_dt, npu_dt, video, npu, board_video, board_npu, max;
 	int err = 0;
-
-	if (!env_get("cma_video") && !env_get("cma_npu"))
-		return;
 
 	video_dt = pool_mb(blob, video_pool(blob));
 	npu_dt = pool_mb(blob, npu_pool(blob));
-	if (!half || !video_dt) {
+	if (!dram || !video_dt) {
 		printf("CMA: unknown DRAM size or video pool, keeping the device tree's sizes\n");
 		return;
 	}
 
-	video = env_mb("cma_video", video_dt, CMA_ALIGN_MB, half);
-	npu = npu_dt ? env_mb("cma_npu", npu_dt, 0, half) : 0;
-	if (video + npu > half) {
-		printf("CMA: %lu + %lu MiB is more than half of the DRAM, keeping %lu + %lu MiB\n",
-		       video, npu, video_dt, npu_dt);
-		return;
+	max = dram - LINUX_MIN_MB;
+	board_mb(dram, video_dt, npu_dt, &board_video, &board_npu);
+	video = env_mb("cma_video", board_video, CMA_ALIGN_MB, max);
+	npu = npu_dt ? env_mb("cma_npu", board_npu, 0, max) : 0;
+	if (video + npu > max) {
+		printf("CMA: %lu + %lu MiB leaves Linux less than %d MiB here, taking %lu + %lu MiB\n",
+		       video, npu, LINUX_MIN_MB, board_video, board_npu);
+		video = board_video;
+		npu = board_npu;
 	}
 
 	if (video != video_dt)
@@ -168,15 +193,28 @@ static void fdt_cma(void *blob)
 		printf("CMA: video %lu MiB, NPU %lu MiB\n", video, npu);
 }
 
+/* The device tree's DRAM is the Go+'s: a kernel booted by an older U-Boot keeps it */
+static int fdt_dram(void *blob, unsigned long dram)
+{
+	if (!dram)
+		return 0;
+
+	printf("DRAM: %lu MiB for Linux\n", dram);
+	return fdt_fixup_memory(blob, CONFIG_SYS_SDRAM_BASE, (u64)dram << 20);
+}
+
 int ft_board_setup(void *blob, bd_t *bd)
 {
 	misc_info_t *info = (misc_info_t *)MISC_INFO_ADDR;
+	unsigned long dram = dram_mb();
 	char serial[17];
 	int err;
 
 	snprintf(serial, sizeof(serial), "%08x%08x", info->uid_h, info->uid_l);
 	err = fdt_setprop_string(blob, 0, "serial-number", serial);
-	fdt_cma(blob);
+	if (!err)
+		err = fdt_dram(blob, dram);
+	fdt_cma(blob, dram);
 
 	return err;
 }
