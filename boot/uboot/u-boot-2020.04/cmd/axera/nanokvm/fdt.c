@@ -210,10 +210,11 @@ int ft_board_setup(void *blob, bd_t *bd)
 	char serial[17];
 	int err;
 
+	/* First: a kernel with the Go+'s DRAM on a Go does not get far */
+	err = fdt_dram(blob, dram);
 	snprintf(serial, sizeof(serial), "%08x%08x", info->uid_h, info->uid_l);
-	err = fdt_setprop_string(blob, 0, "serial-number", serial);
 	if (!err)
-		err = fdt_dram(blob, dram);
+		err = fdt_setprop_string(blob, 0, "serial-number", serial);
 	fdt_cma(blob, dram);
 
 	return err;
