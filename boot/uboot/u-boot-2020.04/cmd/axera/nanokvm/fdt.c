@@ -22,7 +22,7 @@
 #define LINUX_MIN_MB	96
 
 /* On the Go: what 4K takes with three capture buffers */
-#define GO_VIDEO_MB	144
+#define GO_VIDEO_MB	128
 
 /* The DRAM in the package in MiB, 0 for chips of other boards */
 static unsigned long dram_mb(void)
