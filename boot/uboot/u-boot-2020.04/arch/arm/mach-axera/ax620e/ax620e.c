@@ -57,6 +57,20 @@ int arch_cpu_init(void)
 
 struct boot_mode_info boot_info_data;
 
+unsigned long axera_package_dram_mb(void)
+{
+	misc_info_t *info = (misc_info_t *)MISC_INFO_ADDR;
+
+	switch (info->chip_type) {
+	case AX620QE_CHIP:
+		return 512;
+	case AX620QF_CHIP:
+		return 256;
+	default:
+		return 0;
+	}
+}
+
 u32 get_boot_voltage(void)
 {
 	u32 val;

@@ -3,10 +3,10 @@
  * Device tree fixups for Linux:
  * - the chip UID, which SPL copies from the eFuses into IRAM, as the
  *   serial-number (where Nerves' boardid looks for it);
- * - the DRAM the chip type tells, the Go+'s 512 MiB or the Go's 256 MiB, so
- *   that a card boots on either;
  * - the sizes of the CMA pools of video and of the NPU, the board's or the
  *   environment's.
+ * The DRAM, the Go+'s 512 MiB or the Go's 256 MiB, comes from dram_init()
+ * through arch_fixup_fdt(), so that a card boots on either.
  */
 
 #include <common.h>
@@ -23,21 +23,6 @@
 
 /* On the Go: what 4K takes with three capture buffers */
 #define GO_VIDEO_MB	128
-
-/* The DRAM in the package in MiB, 0 for chips of other boards */
-static unsigned long dram_mb(void)
-{
-	misc_info_t *info = (misc_info_t *)MISC_INFO_ADDR;
-
-	switch (info->chip_type) {
-	case AX620QE_CHIP:
-		return 512;
-	case AX620QF_CHIP:
-		return 256;
-	default:
-		return 0;
-	}
-}
 
 /* Linux's default CMA pool, the one video uses */
 static int video_pool(const void *blob)
@@ -193,49 +178,15 @@ static void fdt_cma(void *blob, unsigned long dram)
 		printf("CMA: video %lu MiB, NPU %lu MiB\n", video, npu);
 }
 
-/*
- * The device tree's DRAM is the Go+'s: a kernel booted by an older U-Boot
- * keeps it. Not fdt_fixup_memory(): without ARCH_FIXUP_FDT_MEMORY, off here
- * so that the bank U-Boot assumes stays out of the device tree, it does
- * nothing and returns 0.
- */
-static int fdt_dram(void *blob, unsigned long dram)
-{
-	u64 base = CONFIG_SYS_SDRAM_BASE, size = (u64)dram << 20;
-	fdt32_t reg[4], *cell = reg;
-	int node;
-
-	if (!dram)
-		return 0;
-
-	node = fdt_subnode_offset(blob, 0, "memory");
-	if (node < 0)
-		return node;
-
-	if (fdt_address_cells(blob, 0) == 2)
-		*cell++ = cpu_to_fdt32(base >> 32);
-	*cell++ = cpu_to_fdt32(base);
-	if (fdt_size_cells(blob, 0) == 2)
-		*cell++ = cpu_to_fdt32(size >> 32);
-	*cell++ = cpu_to_fdt32(size);
-
-	printf("DRAM: %lu MiB for Linux\n", dram);
-	return fdt_setprop(blob, node, "reg", reg, (cell - reg) * sizeof(*reg));
-}
-
 int ft_board_setup(void *blob, bd_t *bd)
 {
 	misc_info_t *info = (misc_info_t *)MISC_INFO_ADDR;
-	unsigned long dram = dram_mb();
 	char serial[17];
 	int err;
 
-	/* First: a kernel with the Go+'s DRAM on a Go does not get far */
-	err = fdt_dram(blob, dram);
 	snprintf(serial, sizeof(serial), "%08x%08x", info->uid_h, info->uid_l);
-	if (!err)
-		err = fdt_setprop_string(blob, 0, "serial-number", serial);
-	fdt_cma(blob, dram);
+	err = fdt_setprop_string(blob, 0, "serial-number", serial);
+	fdt_cma(blob, axera_package_dram_mb());
 
 	return err;
 }

@@ -9,6 +9,7 @@
 #include <dm/uclass-internal.h>
 #include <power/regulator.h>
 #include <asm/arch/ax620e.h>
+#include <asm/arch/boot_mode.h>
 #include <dm/device-internal.h>
 #include <nand.h>
 #include <asm/io.h>
@@ -341,16 +342,23 @@ int dram_init_banksize(void)
 }
 #else
 #ifdef CONFIG_AX620Q_EMMC
+/*
+ * The NanoKVM-Go boards take the DRAM in the chip's package, 256 MiB on the
+ * Go and 512 MiB on the Go+: U-Boot then knows the DRAM it has, and
+ * arch_fixup_fdt() gives it to Linux. Other boards keep the vendor's size.
+ */
 int dram_init(void)
 {
-	gd->ram_size = 0xf000000;
+	unsigned long mb = IS_ENABLED(CONFIG_AXERA_NANOKVM_AB) ? axera_package_dram_mb() : 0;
+
+	gd->ram_size = mb ? (phys_size_t)mb << 20 : 0xf000000;
 	return 0;
 }
 
 int dram_init_banksize(void)
 {
 	gd->bd->bi_dram[0].start = 0x40000000;
-	gd->bd->bi_dram[0].size = 0xf000000;
+	gd->bd->bi_dram[0].size = gd->ram_size;
 	return 0;
 }
 #else
@@ -375,3 +383,11 @@ int board_early_init_f(void)
 	chip_init(AX620E_HAPS);
 	return 0;
 }
+
+#ifdef CONFIG_AXERA_RAMLOG
+/* U-Boot relocates below the RAM log, which the kernel and the next boot read */
+ulong board_get_usable_ram_top(ulong total_size)
+{
+	return min_t(ulong, gd->ram_top, CONFIG_AXERA_RAMLOG_ADDR);
+}
+#endif

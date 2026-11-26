@@ -176,6 +176,9 @@ typedef struct misc_info {
 	u32 phy_board_id;
 } misc_info_t;
 
+/* The DRAM in the chip's package in MiB, 0 for chip types not known to have one */
+unsigned long axera_package_dram_mb(void);
+
 #define DDR_INFO_ADDR	0x800 //iram0 addr
 #define DDR_DFS_MAX	2
 #define RANK_MAX	2
