@@ -193,14 +193,34 @@ static void fdt_cma(void *blob, unsigned long dram)
 		printf("CMA: video %lu MiB, NPU %lu MiB\n", video, npu);
 }
 
-/* The device tree's DRAM is the Go+'s: a kernel booted by an older U-Boot keeps it */
+/*
+ * The device tree's DRAM is the Go+'s: a kernel booted by an older U-Boot
+ * keeps it. Not fdt_fixup_memory(): without ARCH_FIXUP_FDT_MEMORY, off here
+ * so that the bank U-Boot assumes stays out of the device tree, it does
+ * nothing and returns 0.
+ */
 static int fdt_dram(void *blob, unsigned long dram)
 {
+	u64 base = CONFIG_SYS_SDRAM_BASE, size = (u64)dram << 20;
+	fdt32_t reg[4], *cell = reg;
+	int node;
+
 	if (!dram)
 		return 0;
 
+	node = fdt_subnode_offset(blob, 0, "memory");
+	if (node < 0)
+		return node;
+
+	if (fdt_address_cells(blob, 0) == 2)
+		*cell++ = cpu_to_fdt32(base >> 32);
+	*cell++ = cpu_to_fdt32(base);
+	if (fdt_size_cells(blob, 0) == 2)
+		*cell++ = cpu_to_fdt32(size >> 32);
+	*cell++ = cpu_to_fdt32(size);
+
 	printf("DRAM: %lu MiB for Linux\n", dram);
-	return fdt_fixup_memory(blob, CONFIG_SYS_SDRAM_BASE, (u64)dram << 20);
+	return fdt_setprop(blob, node, "reg", reg, (cell - reg) * sizeof(*reg));
 }
 
 int ft_board_setup(void *blob, bd_t *bd)
