@@ -11,7 +11,7 @@
 
 #define CONFIG_CMDLINE_TAG
 
-#define CONFIG_SYS_MAXARGS		16
+#define CONFIG_SYS_MAXARGS		32
 
 #define CONFIG_SYS_CBSIZE		1024 /* Console I/O Buffer Size */
 #define CONFIG_SKIP_LOWLEVEL_INIT
