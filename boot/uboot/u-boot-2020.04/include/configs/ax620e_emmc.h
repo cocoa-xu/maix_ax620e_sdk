@@ -50,14 +50,14 @@
 #ifdef CONFIG_AXERA_NANOKVM_AB
 /*
  * Nerves A/B boot from the SD card (layout in nerves_system_nano_kvm_go's
- * fwup.conf): a FIT image (zImage + DTB, sha256) in a raw slot per side,
- * rootfs A/B on p2/p3. nerves_fw_booted/validated work as in other Nerves
- * systems: an update that reboots without being validated (by the
- * application, nerves_fw_autovalidate=0) reverts. A slot
+ * fwup.conf): a FIT image (Linux's Image.gz, its DTB and TF-A's BL31, sha256)
+ * in a raw slot per side, rootfs A/B on p2/p3. nerves_fw_booted/validated
+ * work as in other Nerves systems: an update that reboots without being
+ * validated (by the application, nerves_fw_autovalidate=0) reverts. A slot
  * that fails to load reverts at once. The BOOT button boots the other slot.
- * The FIT is loaded at fit_addr_r and its kernel copied to 0x42000000: the
- * zImage has to run in the first 128 MiB of DRAM, where it derives the
- * kernel's physical base. sdupdate=finish keeps the vendor SD update mode
+ * The FIT is loaded at fit_addr_r, its parts taken out to their addresses,
+ * and go64 enters BL31 in AArch64, which starts Linux; BL31 keeps its
+ * 256 KiB at 0x40040000. sdupdate=finish keeps the vendor SD update mode
  * (and its watchdog stop) out. UART3 is the auxiliary port's expansion lines
  * in Linux: its console is ttynull, its early messages go to the RAM log.
  *
@@ -82,6 +82,9 @@
 	"kernel_b_blk=0x52000\0" \
 	"kernel_blks=0x8000\0" \
 	"fit_addr_r=0x45000000\0" \
+	"bl31_addr_r=0x40040000\0" \
+	"kernel_addr_r=0x40200000\0" \
+	"fdt_addr_r=0x48000000\0" \
 	"cmdline=\0" \
 	"nerves_revert=" \
 		"if test \"${nerves_fw_active}\" = a; then " \
@@ -104,10 +107,13 @@
 		"else setenv kernel_blk ${kernel_a_blk}; setenv rootfs_part 2; fi; " \
 		"mmc dev 1 && mmc read ${fit_addr_r} ${kernel_blk} ${kernel_blks}\0" \
 	"nerves_try=" \
-		"run nerves_load && setenv bootargs console=ttynull " \
-		"earlycon=ramlog,0x4ff10000 keep_bootcon " \
+		"run nerves_load && imxtract $fit_addr_r bl31 $bl31_addr_r && " \
+		"imxtract $fit_addr_r kernel $kernel_addr_r && " \
+		"imxtract $fit_addr_r fdt $fdt_addr_r && setenv bootargs " \
+		"\"console=ttynull earlycon=ramlog,0x4ff10000 keep_bootcon " \
 		"root=/dev/mmcblk0p$rootfs_part rootfstype=squashfs rootwait ro " \
-		"$cmdline && axwdt 120 && bootm $fit_addr_r\0" \
+		"vt.global_cursor_default=0 $cmdline\" && axwdt 120 && " \
+		"go64 $bl31_addr_r $kernel_addr_r $fdt_addr_r\0" \
 	"nerves_bootcmd=" \
 		"run nerves_init; run nerves_cma; run nerves_try; run nerves_revert; " \
 		"setenv nerves_fw_validated 1; saveenv; run nerves_try\0" \
