@@ -32,7 +32,7 @@ obj-$(CONFIG_CMD_AXERA_SDBOOT) += sd_boot/sd_boot.o
 obj-$(CONFIG_CMD_AXERA_TFTP_OTA) += tftp_update/axera_ota.o
 obj-$(CONFIG_CMD_AXERA_UPDATE) += update/axera_update.o
 obj-y += setup_boot/setup_boot.o
-obj-$(CONFIG_AXERA_NANOKVM_AB) += nanokvm/axwdt.o nanokvm/env.o nanokvm/fdt.o
+obj-$(CONFIG_AXERA_NANOKVM_AB) += nanokvm/axwdt.o nanokvm/env.o nanokvm/fdt.o nanokvm/go64.o
 obj-$(CONFIG_CMD_AXERA_CIPHER) += cipher/eip130_drv.o cipher/ax_cipher_api.o cipher/sample_cipher.o cipher/sample_hash.o cipher/sample_trng.o cipher/sample_rsa.o
 obj-$(CONFIG_CMD_AXERA_EMMC_SCAN) += emmc_scan/emmc_scan.o
 

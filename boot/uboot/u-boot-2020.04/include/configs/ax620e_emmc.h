@@ -69,6 +69,9 @@
  * still finds 2, the trial not confirmed, puts the old sizes back.
  * The same as uboot/uboot.env of nerves_system_nano_kvm_go: keep in sync.
  */
+/* imxtract unpacks an AArch64 Image of up to 32 MiB, for go64 */
+#define CONFIG_SYS_XIMG_LEN	0x2000000
+
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	"sdupdate=finish\0" \
 	"nerves_fw_active=a\0" \
